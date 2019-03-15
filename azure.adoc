@@ -1,0 +1,97 @@
+= bbl & BUCC on Azure
+
+== azure pre-reqs
+
+create a service principipal for bucc
+
+. install the https://docs.microsoft.com/en-us/cli/azure/install-azure-cli?view=azure-cli-latest[azure cli]
+
+. login with the cli, this should redirect your browser so you can sign in
+
+----
+az login
+----
+
+[start=3]
+. list your accounts and choos the subscription id which will show up as `id` in the output
+
+----
+az account list
+----
+
+
+[start=4]
+. create the service principal with cli
+
+----
+az ad sp create-for-rbac -n "bucc" --role="Contributor" --scopes="/subscriptions/SUBSCRIPTION_ID"
+----
+
+== running BUCC & bbl
+
+. follow the prereqs listed https://github.com/cloudfoundry/bosh-bootloader#prerequisites[here] to install the tools for `bbl`
+
+. export the bbl environment configs for azure
+
+----
+export BBL_IAAS=azure
+export BBL_ENV_NAME=bucc-azure
+export BBL_AZURE_CLIENT_ID=<appid from above output>
+export BBL_AZURE_CLIENT_SECRET=<password form above output>
+export BBL_AZURE_REGION=<region>
+export BBL_AZURE_SUBSCRIPTION_ID=<subscription id used above>
+export BBL_AZURE_TENANT_ID=<tenant_id from above>
+----
+
+[start=3]
+. create a directory to work from and init git inside
+
+----
+mkdir $BBL_ENV_NAME && cd $BBL_ENV_NAME && git init
+----
+
+[start=4]
+
+. run bbl plan to generate templates
+
+----
+bbl plan -lb-type concourse
+----
+
+[start=5]
+
+. pull down bucc as a submodule to get overrides
+
+----
+git submodule add https://github.com/starkandwayne/bucc.git bucc
+----
+
+
+[start=6]
+
+. symlink the bucc overrides so that bbl will use them
+----
+ln -s bucc/bbl/*-director-override.sh .
+cd terraform
+ln -sr ../bucc/bbl/terraform/$BBL_IAAS/* .
+cd ..
+----
+
+[start=7]
+
+. currently (3/15/2019) there is a bug in the bucc terraform overrides so changing the priority number to `300` in `terraform/bucc_overrides.tf` for the vault rule is necessary.
+
+. run bbl to create infra
+
+----
+bbl up
+----
+
+[start=9]
+
+. get the environment info from bucc & bbl
+
+----
+eval "$(bbl print-env)"
+eval "$(bucc/bin/bucc env)"
+----
